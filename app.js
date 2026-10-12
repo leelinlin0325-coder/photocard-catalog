@@ -218,8 +218,28 @@ function first(obj, names) {
   for(const n of names) if(obj[n] !== undefined) return obj[n];
   return "";
 }
+async function readCsvText(file) {
+  const buffer = await file.arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+  // Respect common Unicode BOMs first.
+  if (bytes.length >= 2 && bytes[0] === 0xFF && bytes[1] === 0xFE) {
+    return new TextDecoder("utf-16le").decode(bytes.subarray(2));
+  }
+  if (bytes.length >= 2 && bytes[0] === 0xFE && bytes[1] === 0xFF) {
+    return new TextDecoder("utf-16be").decode(bytes.subarray(2));
+  }
+  // UTF-8 BOM or valid UTF-8 is preferred. If it is not valid UTF-8,
+  // try common Traditional Chinese Windows encodings.
+  const hasUtf8Bom = bytes.length >= 3 && bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF;
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(hasUtf8Bom ? bytes.subarray(3) : bytes);
+  } catch (_) {
+    try { return new TextDecoder("big5").decode(bytes); }
+    catch (_) { return new TextDecoder("gb18030").decode(bytes); }
+  }
+}
 async function importCsvFile(file) {
-  const text = await file.text();
+  const text = await readCsvText(file);
   const rows = parseCsv(text);
   if(!rows.length) throw new Error("CSV 沒有可匯入的資料。");
   let added=0, updated=0, skipped=0;
