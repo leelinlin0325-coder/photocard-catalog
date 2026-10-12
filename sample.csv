@@ -1,0 +1,4 @@
+﻿id,name,series,card_no,notes,quantity,photo_filename
+C0001,範例小卡一,春季系列,A001,未持有，標記為想收,0,C0001.jpg
+C0002,範例小卡二,春季系列,A002,持有一張，標記為已收,1,C0002.png
+C0003,範例小卡三,夏季特典,SP-03,持有三張，標記為重複卡,3,C0003.webp

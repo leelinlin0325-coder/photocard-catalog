@@ -5,6 +5,33 @@ let db;
 let currentDetailId = null;
 let currentPhotoPreviewUrl = null;
 
+// Firebase Web app configuration (public client configuration, not an admin private key).
+const firebaseConfig = {
+  apiKey: "AIzaSyBOyCRNU93epq5wqHlbyDJnhF6GoQHa1oU",
+  authDomain: "photocard-catalog.firebaseapp.com",
+  projectId: "photocard-catalog",
+  storageBucket: "photocard-catalog.firebasestorage.app",
+  messagingSenderId: "468096862999",
+  appId: "1:468096862999:web:e893a5e26cf1789e904552"
+};
+let firebaseAuth = null;
+let firestore = null;
+let cloudUser = null;
+try {
+  if (window.firebase) {
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    firebaseAuth = firebase.auth();
+    firestore = firebase.firestore();
+    firebaseAuth.onAuthStateChanged(user => {
+      cloudUser = user || null;
+      const status = $("authStatus");
+      if (status) status.textContent = user ? `已登入：${user.email || "Firebase 帳戶"}（卡片文字可手動同步）` : "尚未登入 Firebase。照片不會上傳雲端。";
+      ["cloudUploadBtn", "cloudDownloadBtn", "cloudLogoutBtn"].forEach(id => { if ($(id)) $(id).disabled = !user; });
+      if ($("cloudLoginBtn")) $("cloudLoginBtn").disabled = !!user;
+    });
+  }
+} catch (err) { console.error("Firebase 初始化失敗", err); }
+
 const $ = id => document.getElementById(id);
 const fields = ["cardId","cardName","cardSeries","cardNumber","cardQuantity","cardPhotoFilename","cardNotes"];
 
@@ -345,6 +372,50 @@ async function exportCsv() {
   downloadBlob(blob,"小卡圖鑑資料.csv");
   message("CSV 資料已匯出。收藏標記由數量自動判定；CSV 不包含照片，完整備份請使用「匯出完整備份」。");
 }
+async function cloudLogin() {
+  if (!firebaseAuth) throw new Error("Firebase SDK 尚未載入。請確認網路連線後重新整理頁面。");
+  const email = $("cloudEmail").value.trim();
+  const password = $("cloudPassword").value;
+  if (!email || !password) throw new Error("請輸入 Firebase 登入信箱和密碼。");
+  await firebaseAuth.signInWithEmailAndPassword(email, password);
+  $("cloudPassword").value = "";
+  message("登入成功。請先匯出完整 JSON 備份，再選擇同步方向。");
+}
+async function cloudUpload() {
+  if (!cloudUser || !firestore) throw new Error("請先登入 Firebase。");
+  if (!confirm("要將這台裝置的卡片文字資料上傳至雲端嗎？雲端同編號卡片會被更新；照片不會上傳。建議先匯出 JSON 備份。")) return;
+  const cards = await getAll();
+  const docs = firestore.collection("users").doc(cloudUser.uid).collection("cards");
+  for (let i=0; i<cards.length; i+=400) {
+    const batch = firestore.batch();
+    cards.slice(i,i+400).forEach(c => {
+      const data = { id:c.id, name:c.name||"", series:c.series||"", cardNo:c.cardNo||"", notes:c.notes||"", quantity:Number(c.quantity??0), photoFilename:c.photoFilename||"", updatedAt:firebase.firestore.FieldValue.serverTimestamp() };
+      batch.set(docs.doc(c.id), data, {merge:true});
+    });
+    await batch.commit();
+  }
+  message(`上傳完成：${cards.length} 張卡片的文字資料已同步。照片仍只保存在本機。`);
+}
+async function cloudDownload() {
+  if (!cloudUser || !firestore) throw new Error("請先登入 Firebase。");
+  if (!confirm("要從雲端下載卡片文字資料到這台裝置嗎？相同編號的本機文字資料會被雲端資料覆蓋，但本機照片會保留。建議先匯出 JSON 備份。")) return;
+  const snap = await firestore.collection("users").doc(cloudUser.uid).collection("cards").get();
+  let count=0;
+  for (const doc of snap.docs) {
+    const remote=doc.data();
+    if (!remote.id) continue;
+    const old=await getOne(remote.id);
+    await saveCard({ id:remote.id, name:remote.name||"", series:remote.series||"", cardNo:remote.cardNo||"", notes:remote.notes||"", quantity:Number(remote.quantity??0), photoFilename:remote.photoFilename||"", photo:old?.photo||null });
+    count++;
+  }
+  await render();
+  message(`下載完成：已匯入或更新 ${count} 張卡片。既有本機照片已保留；雲端沒有照片資料。`);
+}
+function bindCloudButton(id, fn) {
+  const el=$(id); if(!el) return;
+  el.addEventListener("click", async()=>{ try { message("正在處理雲端操作…"); await fn(); } catch(err) { message("雲端操作失敗："+(err.message||err), true); } });
+}
+
 function updateConnection() {
   const online=navigator.onLine;
   $("connection").textContent=online?"已連線":"離線模式";
@@ -396,6 +467,10 @@ $("backupFileInput").addEventListener("change",async e=>{
   e.target.value="";
 });
 $("exportCsvBtn").addEventListener("click",exportCsv);
+bindCloudButton("cloudLoginBtn", cloudLogin);
+bindCloudButton("cloudUploadBtn", cloudUpload);
+bindCloudButton("cloudDownloadBtn", cloudDownload);
+if ($("cloudLogoutBtn")) $("cloudLogoutBtn").addEventListener("click", async()=>{ try { await firebaseAuth.signOut(); message("已登出 Firebase。"); } catch(err) { message("登出失敗："+err.message,true); } });
 window.addEventListener("online",updateConnection);
 window.addEventListener("offline",updateConnection);
 

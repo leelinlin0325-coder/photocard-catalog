@@ -26,6 +26,27 @@
       <div class="stat"><span>想收</span><strong id="wantedCount">0</strong></div>
     </section>
 
+    <section class="panel" id="cloudPanel">
+      <h2>雲端同步（Firebase）</h2>
+      <p class="hint">卡片文字資料可同步到你的 Firebase 帳戶；照片仍保存在本機。同步前請先匯出完整 JSON 備份。首次上傳或下載會以你選擇的方向為準。</p>
+      <div id="authStatus" class="hint">尚未登入</div>
+      <div class="filters">
+        <label class="field">Firebase 登入電子郵件
+          <input id="cloudEmail" type="email" autocomplete="username" placeholder="你的 Firebase 登入信箱">
+        </label>
+        <label class="field">密碼
+          <input id="cloudPassword" type="password" autocomplete="current-password" placeholder="Firebase 登入密碼">
+        </label>
+      </div>
+      <div class="toolbar">
+        <button id="cloudLoginBtn" class="primary">登入雲端</button>
+        <button id="cloudLogoutBtn">登出</button>
+        <button id="cloudUploadBtn">上傳本機卡片至雲端</button>
+        <button id="cloudDownloadBtn">從雲端下載卡片</button>
+      </div>
+      <p class="hint">注意：上傳會更新雲端同編號卡片，但不會刪除雲端多出的卡片；下載會以雲端文字資料更新本機同編號卡片，保留本機照片。</p>
+    </section>
+
     <section class="panel">
       <h2>搜尋與篩選</h2>
       <label class="field">搜尋名稱、唯一識別碼、卡片編號、系列、收藏標記或備註
@@ -140,6 +161,9 @@
     </div>
   </dialog>
 
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
   <script src="./app.js" defer></script>
 </body>
 </html>
