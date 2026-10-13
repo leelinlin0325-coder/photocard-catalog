@@ -60,5 +60,6 @@ dialog::backdrop { background:#21172e88; backdrop-filter:blur(2px); }
 @media (max-width:700px) { .card-grid { grid-template-columns:repeat(3,minmax(0,1fr)); gap:9px; } main { padding:12px; } .panel { padding:14px; } .card-body { padding:8px; } .card-title { font-size:.82rem; } .topbar { padding:22px 16px; } }
 @media (max-width:430px) { .card-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .filters { grid-template-columns:1fr; gap:0; } .stats { gap:7px; } .stat { padding:11px; } .stat strong { font-size:1.35rem; } .toolbar button { flex:1 1 auto; } }
 
-.tag { display:inline-block; margin:5px 5px 0 0; padding:3px 8px; border-radius:999px; background:#efe8ff; color:#563c91; font-size:.75rem; }
-.quantity { display:block; margin-top:5px; color:var(--muted); font-size:.78rem; }
+.card-status-row { display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin-top:5px; }
+.tag { display:inline-block; margin:0; padding:3px 8px; border-radius:999px; background:#efe8ff; color:#563c91; font-size:.75rem; }
+.quantity { display:inline-block; margin:0; color:var(--muted); font-size:.78rem; }
