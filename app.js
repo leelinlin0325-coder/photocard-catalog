@@ -127,11 +127,13 @@ async function render() {
     return `<article class="card" data-id="${esc(c.id)}" tabindex="0" role="button" aria-label="查看 ${esc(title)}">
       <div class="card-image">${image}</div>
       <div class="card-body"><div class="card-title">${esc(title)}</div>
-      <div class="card-meta">${esc(c.series || c.cardNo || c.id)}</div>
-      <span class="tag">${collectionLabel(c.quantity)}</span>
-      ${Number(c.quantity ?? 0) >= 2
-        ? `<small class="quantity">持有 ${Number(c.quantity ?? 0)} 張</small>`
-        : `<small class="quantity">${Number(c.quantity ?? 0)} 張</small>`}
+      <div class="card-meta">${[c.series, c.cardNo || c.id].filter(Boolean).map(esc).join(" · ")}</div>
+      <div class="card-status-row">
+        <span class="tag">${collectionLabel(c.quantity)}</span>
+        ${Number(c.quantity ?? 0) >= 2
+          ? `<small class="quantity">持有 ${Number(c.quantity ?? 0)} 張</small>`
+          : `<small class="quantity">${Number(c.quantity ?? 0)} 張</small>`}
+      </div>
       </div></article>`;
   }).join("");
   $("cardGrid").querySelectorAll(".card").forEach(el => {
