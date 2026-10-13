@@ -208,7 +208,7 @@ async function openDetail(id) {
   const c = await getOne(id);
   if (!c) return;
   currentDetailId = id;
-  const src = c.photo ? blobUrl(c.photo) : "";
+  const src = c.photo ? blobUrl(c.photo) : (c.photoFilename ? new URL("./photos/" + encodeURIComponent(c.photoFilename), document.baseURI).href : "");
   $("detailContent").innerHTML = `${src ? `<img class="detail-image" src="${src}" alt="${esc(c.name || c.id)}">` : '<div class="empty-state visible">尚未加入照片</div>'}
     <h3>${esc(c.name || c.id)}</h3>
     <span class="tag">${collectionLabel(c.quantity)}</span>
