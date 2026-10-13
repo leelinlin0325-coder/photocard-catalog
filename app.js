@@ -121,7 +121,7 @@ async function render() {
   $("resultCount").textContent = `${filtered.length} 張`;
   $("emptyState").classList.toggle("visible", filtered.length === 0);
   $("cardGrid").innerHTML = filtered.map(c => {
-    const src = c.photo ? blobUrl(c.photo) : "";
+    const src = c.photo ? blobUrl(c.photo) : (c.photoFilename ? new URL("./photos/" + encodeURIComponent(c.photoFilename), document.baseURI).href : "");
     const title = c.name || c.id;
     const image = src ? `<img src="${src}" alt="${esc(title)}" loading="lazy">` : '<span class="no-image">▧</span>';
     return `<article class="card" data-id="${esc(c.id)}" tabindex="0" role="button" aria-label="查看 ${esc(title)}">
