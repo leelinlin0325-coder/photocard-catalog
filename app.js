@@ -121,7 +121,7 @@ async function render() {
   $("resultCount").textContent = `${filtered.length} 張`;
   $("emptyState").classList.toggle("visible", filtered.length === 0);
   $("cardGrid").innerHTML = filtered.map(c => {
-    const src = c.photo ? blobUrl(c.photo) : (c.photoFilename ? new URL("./photos/" + encodeURIComponent(c.photoFilename), document.baseURI).href : "");
+    const src = c.photoFilename ? new URL("./photos/" + encodeURIComponent(c.photoFilename), document.baseURI).href : (c.photo ? blobUrl(c.photo) : "");
     const title = c.name || c.id;
     const image = src ? `<img src="${src}" alt="${esc(title)}" loading="lazy">` : '<span class="no-image">▧</span>';
     return `<article class="card" data-id="${esc(c.id)}" tabindex="0" role="button" aria-label="查看 ${esc(title)}">
@@ -208,7 +208,7 @@ async function openDetail(id) {
   const c = await getOne(id);
   if (!c) return;
   currentDetailId = id;
-  const src = c.photo ? blobUrl(c.photo) : (c.photoFilename ? new URL("./photos/" + encodeURIComponent(c.photoFilename), document.baseURI).href : "");
+  const src = c.photoFilename ? new URL("./photos/" + encodeURIComponent(c.photoFilename), document.baseURI).href : (c.photo ? blobUrl(c.photo) : "");
   $("detailContent").innerHTML = `${src ? `<img class="detail-image" src="${src}" alt="${esc(c.name || c.id)}">` : '<div class="empty-state visible">尚未加入照片</div>'}
     <h3>${esc(c.name || c.id)}</h3>
     <span class="tag">${collectionLabel(c.quantity)}</span>
