@@ -1,18 +1,18 @@
 {
-  "name": "我的小卡圖鑑",
-  "short_name": "小卡圖鑑",
-  "description": "可離線使用的個人小卡收藏圖鑑",
+  "name": "瑤台月下💜乘風卡收藏圖鑑",
+  "short_name": YTYX圖鑑",
+  "description": "可離線使用的瑤台月下💜乘風卡收藏圖鑑",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "background_color": "#f7f5fa",
   "theme_color": "#6750a4",
   "icons": [
-    {
-      "src": "./icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
+  {
+    "src": "./icon.png",
+    "sizes": "1024x1024",
+    "type": "image/png",
+    "purpose": "any"
     }
   ]
 }
