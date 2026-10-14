@@ -88,6 +88,32 @@ function esc(value="") {
 }
 function blobUrl(blob) { return blob ? URL.createObjectURL(blob) : ""; }
 function cleanUrl(url) { if (url) URL.revokeObjectURL(url); }
+
+// Load card-list images only when they are near the visible area.
+let cardImageObserver = null;
+function activateLazyCardImages() {
+  const images = document.querySelectorAll("#cardGrid img.lazy-card-image[data-src]");
+  if (!("IntersectionObserver" in window)) {
+    images.forEach(img => {
+      img.src = img.dataset.src;
+      img.removeAttribute("data-src");
+    });
+    return;
+  }
+
+  if (cardImageObserver) cardImageObserver.disconnect();
+  cardImageObserver = new IntersectionObserver((entries, observer) => {
+    entries.forEach(entry => {
+      if (!entry.isIntersecting) return;
+      const img = entry.target;
+      img.src = img.dataset.src;
+      img.removeAttribute("data-src");
+      observer.unobserve(img);
+    });
+  }, { rootMargin: "250px 0px", threshold: 0.01 });
+
+  images.forEach(img => cardImageObserver.observe(img));
+}
 function collectionLabel(quantity) {
   const n = Math.max(0, Number.parseInt(quantity ?? 0, 10) || 0);
   if (n === 0) return "想收";
@@ -123,7 +149,7 @@ async function render() {
   $("cardGrid").innerHTML = filtered.map(c => {
     const src = c.photoFilename ? new URL("./photos/" + encodeURIComponent(c.photoFilename), document.baseURI).href : (c.photo ? blobUrl(c.photo) : "");
     const title = c.name || c.id;
-    const image = src ? `<img src="${src}" alt="${esc(title)}" loading="lazy">` : '<span class="no-image">▧</span>';
+    const image = src ? `<img class="lazy-card-image" data-src="${src}" alt="${esc(title)}" loading="lazy" decoding="async">` : '<span class="no-image">▧</span>';
     return `<article class="card" data-id="${esc(c.id)}" tabindex="0" role="button" aria-label="查看 ${esc(title)}">
       <div class="card-image">${image}</div>
       <div class="card-body"><div class="card-title">${esc(title)}</div>
@@ -136,6 +162,7 @@ async function render() {
       </div>
       </div></article>`;
   }).join("");
+  activateLazyCardImages();
   $("cardGrid").querySelectorAll(".card").forEach(el => {
     el.addEventListener("click", () => openDetail(el.dataset.id));
     el.addEventListener("keydown", e => { if(e.key==="Enter"||e.key===" ") { e.preventDefault(); openDetail(el.dataset.id); } });
