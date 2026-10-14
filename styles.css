@@ -63,3 +63,7 @@ dialog::backdrop { background:#21172e88; backdrop-filter:blur(2px); }
 .card-status-row { display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin-top:5px; }
 .tag { display:inline-block; margin:0; padding:3px 8px; border-radius:999px; background:#efe8ff; color:#563c91; font-size:.75rem; }
 .quantity { display:inline-block; margin:0; color:var(--muted); font-size:.78rem; }
+
+/* Public read-only mode */
+.admin-tools.hidden { display:none !important; }
+body.public-mode #addCardBtn, body.public-mode #importCsvBtn, body.public-mode #importPhotosBtn { display:none !important; }

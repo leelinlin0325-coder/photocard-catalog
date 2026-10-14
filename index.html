@@ -26,7 +26,7 @@
       <div class="stat"><span>想收</span><strong id="wantedCount">0</strong></div>
     </section>
 
-    <section class="panel" id="cloudPanel">
+    <section class="panel admin-tools hidden" id="cloudPanel">
       <h2>雲端同步（Firebase）</h2>
       <p class="hint">卡片文字資料可同步到你的 Firebase 帳戶；照片仍保存在本機。同步前請先匯出完整 JSON 備份。首次上傳或下載會以你選擇的方向為準。</p>
       <div id="authStatus" class="hint">尚未登入</div>
@@ -43,8 +43,9 @@
         <button id="cloudLogoutBtn">登出</button>
         <button id="cloudUploadBtn">上傳本機卡片至雲端</button>
         <button id="cloudDownloadBtn">從雲端下載卡片</button>
+        <button id="publishPublicBtn" class="primary">發布到公開圖鑑</button>
       </div>
-      <p class="hint">注意：上傳會更新雲端同編號卡片，但不會刪除雲端多出的卡片；下載會以雲端文字資料更新本機同編號卡片，保留本機照片。</p>
+      <p class="hint">注意：私人同步只寫入你的帳戶。發布會把卡片名稱、系列、卡號、持有數量及照片檔名複製到公開圖鑑；不會公開備註，也不會刪除公開圖鑑中多出的舊卡片。</p>
     </section>
 
     <section class="panel">
@@ -65,7 +66,7 @@
           <select id="groupFilter"><option value="">全部系列</option></select>
         </label>
       </div>
-      <div class="toolbar">
+      <div class="toolbar admin-tools hidden">
         <button id="addCardBtn" class="primary">＋ 新增小卡</button>
         <button id="importCsvBtn">匯入 CSV</button>
         <button id="importPhotosBtn">批次加入照片</button>
@@ -82,11 +83,11 @@
       <div id="emptyState" class="empty-state">
         <div class="empty-icon">▧</div>
         <h3>圖鑑還是空的</h3>
-        <p>可以先新增一張小卡，或匯入 CSV 與照片。</p>
+        <p id="emptyHint">可以先新增一張小卡，或匯入 CSV 與照片。</p>
       </div>
     </section>
 
-    <section class="panel">
+    <section class="panel admin-tools hidden" id="backupPanel">
       <h2>備份與還原</h2>
       <p class="hint">資料和照片會儲存在目前這台裝置的瀏覽器中。請定期匯出備份；清除瀏覽器資料可能會刪掉圖鑑。</p>
       <div class="toolbar">
@@ -96,7 +97,7 @@
       </div>
       <p id="message" class="message" role="status" aria-live="polite"></p>
     </section>
-    <p class="footer-note">個人離線圖鑑 • 資料只保存在本機，不會自動同步到其他裝置</p>
+    <p class="footer-note" id="footerNote">公開瀏覽圖鑑 • 照片由 GitHub Pages 提供</p>
   </main>
 
   <input id="csvFileInput" type="file" accept=".csv,text/csv" hidden>

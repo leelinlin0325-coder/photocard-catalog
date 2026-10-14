@@ -17,6 +17,12 @@ const firebaseConfig = {
 let firebaseAuth = null;
 let firestore = null;
 let cloudUser = null;
+const OWNER_UID = "ltiLqPI613bVio6WQSPtFJnbBmc2";
+let isOwner = false;
+let publicCards = [];
+let publicLoadError = "";
+const adminRequested = new URLSearchParams(location.search).get("admin") === "1";
+
 try {
   if (window.firebase) {
     if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
@@ -24,10 +30,14 @@ try {
     firestore = firebase.firestore();
     firebaseAuth.onAuthStateChanged(user => {
       cloudUser = user || null;
+      isOwner = !!user && user.uid === OWNER_UID;
+      document.body.classList.toggle("public-mode", !isOwner);
+      document.querySelectorAll(".admin-tools").forEach(el => el.classList.toggle("hidden", !(isOwner || (adminRequested && el.id === "cloudPanel"))));
       const status = $("authStatus");
-      if (status) status.textContent = user ? `已登入：${user.email || "Firebase 帳戶"}（卡片文字可手動同步）` : "尚未登入 Firebase。照片不會上傳雲端。";
-      ["cloudUploadBtn", "cloudDownloadBtn", "cloudLogoutBtn"].forEach(id => { if ($(id)) $(id).disabled = !user; });
+      if (status) status.textContent = isOwner ? `管理者已登入：${user.email || "Firebase 帳戶"}` : (user ? "目前帳號只有公開瀏覽權限。" : "尚未登入 Firebase。公開訪客可直接瀏覽；管理者請以網址加上 ?admin=1 登入。" );
+      ["cloudUploadBtn", "cloudDownloadBtn", "cloudLogoutBtn", "publishPublicBtn"].forEach(id => { if ($(id)) $(id).disabled = !isOwner; });
       if ($("cloudLoginBtn")) $("cloudLoginBtn").disabled = !!user;
+      if (db) { if (isOwner) render(); else loadPublicCatalog(); }
     });
   }
 } catch (err) { console.error("Firebase 初始化失敗", err); }
@@ -88,32 +98,6 @@ function esc(value="") {
 }
 function blobUrl(blob) { return blob ? URL.createObjectURL(blob) : ""; }
 function cleanUrl(url) { if (url) URL.revokeObjectURL(url); }
-
-// Load card-list images only when they are near the visible area.
-let cardImageObserver = null;
-function activateLazyCardImages() {
-  const images = document.querySelectorAll("#cardGrid img.lazy-card-image[data-src]");
-  if (!("IntersectionObserver" in window)) {
-    images.forEach(img => {
-      img.src = img.dataset.src;
-      img.removeAttribute("data-src");
-    });
-    return;
-  }
-
-  if (cardImageObserver) cardImageObserver.disconnect();
-  cardImageObserver = new IntersectionObserver((entries, observer) => {
-    entries.forEach(entry => {
-      if (!entry.isIntersecting) return;
-      const img = entry.target;
-      img.src = img.dataset.src;
-      img.removeAttribute("data-src");
-      observer.unobserve(img);
-    });
-  }, { rootMargin: "250px 0px", threshold: 0.01 });
-
-  images.forEach(img => cardImageObserver.observe(img));
-}
 function collectionLabel(quantity) {
   const n = Math.max(0, Number.parseInt(quantity ?? 0, 10) || 0);
   if (n === 0) return "想收";
@@ -123,7 +107,7 @@ function collectionLabel(quantity) {
 function makeCardId() { return "CARD" + Date.now().toString().slice(-8); }
 
 async function render() {
-  const cards = await getAll();
+  const cards = isOwner ? await getAll() : publicCards.slice();
   cards.sort((a,b) => (a.id || "").localeCompare(b.id || "", "zh-Hant", { numeric:true }));
   const query = $("searchInput").value.trim().toLowerCase();
   const status = $("collectionFilter").value;
@@ -136,7 +120,7 @@ async function render() {
 
   const filtered = cards.filter(c => {
     const derivedTag = collectionLabel(c.quantity);
-    const haystack = [c.id,c.name,c.series,c.cardNo,derivedTag,c.notes,c.photoFilename].join(" ").toLowerCase();
+    const haystack = [c.id,c.name,c.series,c.cardNo,derivedTag,isOwner ? c.notes : "",c.photoFilename].join(" ").toLowerCase();
     return (!query || haystack.includes(query)) &&
       (!status || derivedTag === status) &&
       (!group || c.series === group);
@@ -149,7 +133,7 @@ async function render() {
   $("cardGrid").innerHTML = filtered.map(c => {
     const src = c.photoFilename ? new URL("./photos/" + encodeURIComponent(c.photoFilename), document.baseURI).href : (c.photo ? blobUrl(c.photo) : "");
     const title = c.name || c.id;
-    const image = src ? `<img class="lazy-card-image" data-src="${src}" alt="${esc(title)}" loading="lazy" decoding="async">` : '<span class="no-image">▧</span>';
+    const image = src ? `<img src="${src}" alt="${esc(title)}" loading="lazy">` : '<span class="no-image">▧</span>';
     return `<article class="card" data-id="${esc(c.id)}" tabindex="0" role="button" aria-label="查看 ${esc(title)}">
       <div class="card-image">${image}</div>
       <div class="card-body"><div class="card-title">${esc(title)}</div>
@@ -162,7 +146,6 @@ async function render() {
       </div>
       </div></article>`;
   }).join("");
-  activateLazyCardImages();
   $("cardGrid").querySelectorAll(".card").forEach(el => {
     el.addEventListener("click", () => openDetail(el.dataset.id));
     el.addEventListener("keydown", e => { if(e.key==="Enter"||e.key===" ") { e.preventDefault(); openDetail(el.dataset.id); } });
@@ -191,6 +174,7 @@ function clearForm() {
   currentPhotoPreviewUrl = null;
 }
 async function openEditor(id=null) {
+  if (!isOwner) { message("公開圖鑑為唯讀模式。", true); return; }
   clearForm();
   if (id) {
     const c = await getOne(id);
@@ -219,6 +203,7 @@ async function openEditor(id=null) {
 }
 async function saveFromForm(e) {
   e.preventDefault();
+  if (!isOwner) { message("只有管理者可以修改卡片。", true); return; }
   const c = readForm();
   if (!c.id) { message("請填寫卡片編號。", true); return; }
   const originalId = $("editOriginalId").value;
@@ -232,7 +217,7 @@ async function saveFromForm(e) {
   await render();
 }
 async function openDetail(id) {
-  const c = await getOne(id);
+  const c = isOwner ? await getOne(id) : publicCards.find(item => item.id === id);
   if (!c) return;
   currentDetailId = id;
   const src = c.photoFilename ? new URL("./photos/" + encodeURIComponent(c.photoFilename), document.baseURI).href : (c.photo ? blobUrl(c.photo) : "");
@@ -245,9 +230,9 @@ async function openDetail(id) {
       <dt>卡片編號</dt><dd>${esc(c.cardNo)}</dd>
       <dt>收藏標記</dt><dd>${collectionLabel(c.quantity)}</dd>
       <dt>持有張數</dt><dd>${Number(c.quantity ?? 0)} 張</dd>
-      <dt>照片檔名</dt><dd>${esc(c.photoFilename)}</dd>
-      <dt>備註</dt><dd>${esc(c.notes)}</dd>
+      ${isOwner ? `<dt>照片檔名</dt><dd>${esc(c.photoFilename)}</dd><dt>備註</dt><dd>${esc(c.notes)}</dd>` : ""}
     </dl>`;
+  $("editDetailBtn").classList.toggle("hidden", !isOwner);
   $("detailDialog").showModal();
 }
 function parseCsv(text) {
@@ -411,7 +396,7 @@ async function cloudLogin() {
   message("登入成功。請先匯出完整 JSON 備份，再選擇同步方向。");
 }
 async function cloudUpload() {
-  if (!cloudUser || !firestore) throw new Error("請先登入 Firebase。");
+  if (!isOwner || !cloudUser || !firestore) throw new Error("請使用管理者帳號登入 Firebase。");
   if (!confirm("要將這台裝置的卡片文字資料上傳至雲端嗎？雲端同編號卡片會被更新；照片不會上傳。建議先匯出 JSON 備份。")) return;
   const cards = await getAll();
   const docs = firestore.collection("users").doc(cloudUser.uid).collection("cards");
@@ -426,7 +411,7 @@ async function cloudUpload() {
   message(`上傳完成：${cards.length} 張卡片的文字資料已同步。照片仍只保存在本機。`);
 }
 async function cloudDownload() {
-  if (!cloudUser || !firestore) throw new Error("請先登入 Firebase。");
+  if (!isOwner || !cloudUser || !firestore) throw new Error("請使用管理者帳號登入 Firebase。");
   if (!confirm("要從雲端下載卡片文字資料到這台裝置嗎？相同編號的本機文字資料會被雲端資料覆蓋，但本機照片會保留。建議先匯出 JSON 備份。")) return;
   const snap = await firestore.collection("users").doc(cloudUser.uid).collection("cards").get();
   let count=0;
@@ -440,6 +425,58 @@ async function cloudDownload() {
   await render();
   message(`下載完成：已匯入或更新 ${count} 張卡片。既有本機照片已保留；雲端沒有照片資料。`);
 }
+async function loadPublicCatalog() {
+  if (!firestore) {
+    publicLoadError = "公開圖鑑需要網路連線載入資料。";
+    publicCards = [];
+    await render();
+    message(publicLoadError, true);
+    return;
+  }
+  try {
+    const snap = await firestore.collection("publicCatalog").get();
+    publicCards = snap.docs.map(doc => {
+      const d = doc.data();
+      return { id: d.id || doc.id, name: d.name || "", series: d.series || "", cardNo: d.cardNo || "", quantity: Number(d.quantity ?? 0), photoFilename: d.photoFilename || "", notes: "" };
+    });
+    publicLoadError = "";
+    try { localStorage.setItem("photocard-public-catalog-cache", JSON.stringify(publicCards)); } catch (_) {}
+    await render();
+    $("footerNote").textContent = "公開瀏覽圖鑑 • 照片由 GitHub Pages 提供";
+    if (!isOwner) message(`公開圖鑑已載入 ${publicCards.length} 張小卡。`);
+  } catch (err) {
+    try {
+      const cached = JSON.parse(localStorage.getItem("photocard-public-catalog-cache") || "[]");
+      if (Array.isArray(cached) && cached.length) {
+        publicCards = cached;
+        publicLoadError = "目前無法連線，顯示上次載入的公開圖鑑資料。";
+        await render();
+        message(publicLoadError, true);
+        return;
+      }
+    } catch (_) {}
+    publicLoadError = "無法載入公開圖鑑：" + (err.message || err);
+    publicCards = [];
+    await render();
+    message(publicLoadError, true);
+  }
+}
+async function publishPublicCatalog() {
+  if (!isOwner || !firestore) throw new Error("只有圖鑑管理者可以發布公開資料。");
+  if (!confirm("要將本機所有卡片發布到公開圖鑑嗎？公開內容包含識別碼、名稱、系列、卡號、持有數量及照片檔名；備註不會發布。這會新增或更新公開卡片，但不會刪除公開圖鑑裡多出的舊卡片。請確認目前本機資料完整。")) return;
+  const cards = await getAll();
+  for (let i = 0; i < cards.length; i += 400) {
+    const batch = firestore.batch();
+    cards.slice(i, i + 400).forEach(c => {
+      const data = { id:c.id, name:c.name||"", series:c.series||"", cardNo:c.cardNo||"", quantity:Number(c.quantity??0), photoFilename:c.photoFilename||"", updatedAt:firebase.firestore.FieldValue.serverTimestamp() };
+      batch.set(firestore.collection("publicCatalog").doc(c.id), data, {merge:true});
+    });
+    await batch.commit();
+  }
+  await loadPublicCatalog();
+  message(`發布完成：已發布 ${cards.length} 張公開卡片。`);
+}
+
 function bindCloudButton(id, fn) {
   const el=$(id); if(!el) return;
   el.addEventListener("click", async()=>{ try { message("正在處理雲端操作…"); await fn(); } catch(err) { message("雲端操作失敗："+(err.message||err), true); } });
@@ -477,13 +514,14 @@ $("cardPhoto").addEventListener("change",e=>{
   $("currentPhotoPreview").innerHTML=`<img src="${currentPhotoPreviewUrl}" alt="新照片預覽">`;
 });
 $("deleteCardBtn").addEventListener("click",async()=>{
+  if (!isOwner) { message("只有管理者可以刪除卡片。", true); return; }
   const id=$("editOriginalId").value;
   if(!id || !confirm(`確定刪除 ${id}？此操作無法復原。`))return;
   await deleteCard(id); $("cardDialog").close(); await render(); message("小卡已刪除。");
 });
 $("closeDetailBtn").addEventListener("click",()=>$("detailDialog").close());
 $("closeDetailBottomBtn").addEventListener("click",()=>$("detailDialog").close());
-$("editDetailBtn").addEventListener("click",async()=>{ $("detailDialog").close(); await openEditor(currentDetailId); });
+$("editDetailBtn").addEventListener("click",async()=>{ if (!isOwner) return; $("detailDialog").close(); await openEditor(currentDetailId); });
 $("searchInput").addEventListener("input",render);
 $("collectionFilter").addEventListener("change",render);
 $("groupFilter").addEventListener("change",render);
@@ -499,6 +537,7 @@ $("exportCsvBtn").addEventListener("click",exportCsv);
 bindCloudButton("cloudLoginBtn", cloudLogin);
 bindCloudButton("cloudUploadBtn", cloudUpload);
 bindCloudButton("cloudDownloadBtn", cloudDownload);
+bindCloudButton("publishPublicBtn", publishPublicCatalog);
 if ($("cloudLogoutBtn")) $("cloudLogoutBtn").addEventListener("click", async()=>{ try { await firebaseAuth.signOut(); message("已登出 Firebase。"); } catch(err) { message("登出失敗："+err.message,true); } });
 window.addEventListener("online",updateConnection);
 window.addEventListener("offline",updateConnection);
@@ -507,7 +546,9 @@ window.addEventListener("offline",updateConnection);
   try {
     db=await openDb();
     updateConnection();
-    await render();
+    document.body.classList.toggle("public-mode", !isOwner);
+    document.querySelectorAll(".admin-tools").forEach(el => el.classList.toggle("hidden", !(isOwner || (adminRequested && el.id === "cloudPanel"))));
+    if (isOwner) await render(); else await loadPublicCatalog();
     if("serviceWorker" in navigator && (location.protocol==="https:" || location.hostname==="localhost")) {
       navigator.serviceWorker.register("./sw.js").catch(err=>console.warn("Service worker 註冊失敗",err));
     }
