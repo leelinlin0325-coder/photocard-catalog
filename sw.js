@@ -1,5 +1,5 @@
 
-const CACHE_NAME = "photocard-catalog-shell-v8";
+const CACHE_NAME = "photocard-catalog-shell-v9";
 const APP_SHELL = [
   "./",
   "./index.html",

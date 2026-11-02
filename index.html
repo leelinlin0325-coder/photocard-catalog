@@ -21,9 +21,10 @@
 
   <main>
     <section class="stats" aria-label="收藏統計">
-      <div class="stat"><span>全部小卡</span><strong id="totalCount">0</strong></div>
-      <div class="stat"><span>已收藏</span><strong id="ownedCount">0</strong></div>
-      <div class="stat"><span>想收</span><strong id="wantedCount">0</strong></div>
+      <button type="button" class="stat stat-button" data-stat-filter=""><span>全部小卡</span><strong id="totalCount">0</strong></button>
+      <button type="button" class="stat stat-button" data-stat-filter="已收藏"><span>已收藏</span><strong id="ownedCount">0</strong></button>
+      <button type="button" class="stat stat-button" data-stat-filter="想收"><span>想收</span><strong id="wantedCount">0</strong></button>
+      <button type="button" class="stat stat-button stat-pending" data-stat-filter="已購待回"><span>已購待回</span><strong id="pendingCount">0</strong></button>
     </section>
 
     <section class="panel admin-tools hidden" id="cloudPanel">
@@ -57,9 +58,11 @@
         <label class="field">收藏標記
           <select id="collectionFilter">
             <option value="">全部標記</option>
-            <option>想收</option>
-            <option>已收</option>
-            <option>重複卡</option>
+            <option value="想收">想收</option>
+            <option value="已購待回">已購待回</option>
+            <option value="已收藏">已收藏（已收＋重複卡）</option>
+            <option value="已收">已收</option>
+            <option value="重複卡">重複卡</option>
           </select>
         </label>
         <label class="field">系列
@@ -132,8 +135,15 @@
       <div class="filters">
         <label class="field">持有張數（自動判定收藏標記）
           <input id="cardQuantity" type="number" min="0" step="1" value="0" required>
-          <small class="hint">0＝想收；1＝已收；2 張以上＝重複卡，並顯示實際張數。</small>
+          <small class="hint">0＝想收／已購待回；1＝已收；2 張以上＝重複卡。</small>
         </label>
+      </div>
+      <div id="purchaseFields" class="purchase-fields hidden">
+        <label class="check-field"><input id="purchasedPending" type="checkbox"> 已購待回</label>
+        <label class="field">購買日期（可留空）
+          <input id="purchaseDate" type="date">
+        </label>
+        <small class="hint">勾選已購待回時會自動填入今天日期，你也可以自行修改。</small>
       </div>
       <label class="field">照片檔名（批次配對用）
         <input id="cardPhotoFilename" placeholder="例如：C0001.jpg">

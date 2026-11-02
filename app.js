@@ -98,11 +98,24 @@ function esc(value="") {
 }
 function blobUrl(blob) { return blob ? URL.createObjectURL(blob) : ""; }
 function cleanUrl(url) { if (url) URL.revokeObjectURL(url); }
-function collectionLabel(quantity) {
+function collectionLabel(quantity, purchasedPending=false) {
   const n = Math.max(0, Number.parseInt(quantity ?? 0, 10) || 0);
-  if (n === 0) return "想收";
+  if (n === 0) return purchasedPending ? "已購待回" : "想收";
   if (n === 1) return "已收";
   return "重複卡";
+}
+function isPurchasedPending(card) {
+  return Number(card.quantity ?? 0) === 0 && card.purchasedPending === true;
+}
+function todayDateInput() {
+  const now = new Date();
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0,10);
+}
+function displayPurchaseDate(value) {
+  if (!value) return "";
+  const m = String(value).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? `${m[1]}/${m[2]}/${m[3]}` : String(value).replaceAll("-", "/");
 }
 function makeCardId() { return "CARD" + Date.now().toString().slice(-8); }
 
@@ -119,15 +132,15 @@ async function render() {
   if (groups.includes(oldGroup)) groupSelect.value = oldGroup;
 
   const filtered = cards.filter(c => {
-    const derivedTag = collectionLabel(c.quantity);
+    const derivedTag = collectionLabel(c.quantity, isPurchasedPending(c));
     const haystack = [c.id,c.name,c.series,c.cardNo,derivedTag,isOwner ? c.notes : "",c.photoFilename].join(" ").toLowerCase();
-    return (!query || haystack.includes(query)) &&
-      (!status || derivedTag === status) &&
-      (!group || c.series === group);
+    const statusMatch = !status || (status === "已收藏" ? Number(c.quantity ?? 0) >= 1 : derivedTag === status);
+    return (!query || haystack.includes(query)) && statusMatch && (!group || c.series === group);
   });
   $("totalCount").textContent = cards.length;
   $("ownedCount").textContent = cards.filter(c=>Number(c.quantity ?? 0) >= 1).length;
-  $("wantedCount").textContent = cards.filter(c=>Number(c.quantity ?? 0) === 0).length;
+  $("wantedCount").textContent = cards.filter(c=>Number(c.quantity ?? 0) === 0 && !isPurchasedPending(c)).length;
+  $("pendingCount").textContent = cards.filter(isPurchasedPending).length;
   $("resultCount").textContent = `${filtered.length} 張`;
   $("emptyState").classList.toggle("visible", filtered.length === 0);
   $("cardGrid").innerHTML = filtered.map(c => {
@@ -139,7 +152,7 @@ async function render() {
       <div class="card-body"><div class="card-title">${esc(title)}</div>
       <div class="card-meta">${[c.series, c.cardNo || c.id].filter(Boolean).map(esc).join(" · ")}</div>
       <div class="card-status-row">
-        <span class="tag">${collectionLabel(c.quantity)}</span>
+        <span class="tag ${isPurchasedPending(c) ? "tag-pending" : ""}">${collectionLabel(c.quantity, isPurchasedPending(c))}</span>
         ${Number(c.quantity ?? 0) >= 2
           ? `<small class="quantity">持有 ${Number(c.quantity ?? 0)} 張</small>`
           : `<small class="quantity">${Number(c.quantity ?? 0)} 張</small>`}
@@ -162,7 +175,9 @@ function readForm() {
     cardNo: $("cardNumber").value.trim(),
     notes: $("cardNotes").value.trim(),
     quantity: Math.max(0, Number.parseInt($("cardQuantity").value || "0", 10) || 0),
-    photoFilename: $("cardPhotoFilename").value.trim()
+    photoFilename: $("cardPhotoFilename").value.trim(),
+    purchasedPending: Number($("cardQuantity").value || 0) === 0 && $("purchasedPending").checked,
+    purchaseDate: Number($("cardQuantity").value || 0) === 0 && $("purchasedPending").checked ? $("purchaseDate").value : ""
   };
 }
 function clearForm() {
@@ -189,6 +204,9 @@ async function openEditor(id=null) {
     $("cardQuantity").value = c.quantity ?? 0;
     $("cardPhotoFilename").value = c.photoFilename || "";
     $("cardNotes").value = c.notes || "";
+    $("purchasedPending").checked = isPurchasedPending(c);
+    $("purchaseDate").value = isPurchasedPending(c) ? (c.purchaseDate || "") : "";
+    $("purchaseFields").classList.toggle("hidden", Number(c.quantity ?? 0) !== 0);
     $("deleteCardBtn").classList.remove("hidden");
     if (c.photo) {
       currentPhotoPreviewUrl = blobUrl(c.photo);
@@ -198,6 +216,9 @@ async function openEditor(id=null) {
     $("dialogTitle").textContent = "新增小卡";
     $("cardId").readOnly = false;
     $("cardId").value = makeCardId();
+    $("purchasedPending").checked = false;
+    $("purchaseDate").value = "";
+    $("purchaseFields").classList.remove("hidden");
   }
   $("cardDialog").showModal();
 }
@@ -223,12 +244,13 @@ async function openDetail(id) {
   const src = c.photoFilename ? new URL("./photos/" + encodeURIComponent(c.photoFilename), document.baseURI).href : (c.photo ? blobUrl(c.photo) : "");
   $("detailContent").innerHTML = `${src ? `<img class="detail-image" src="${src}" alt="${esc(c.name || c.id)}">` : '<div class="empty-state visible">尚未加入照片</div>'}
     <h3>${esc(c.name || c.id)}</h3>
-    <span class="tag">${collectionLabel(c.quantity)}</span>
+    <span class="tag ${isPurchasedPending(c) ? "tag-pending" : ""}">${collectionLabel(c.quantity, isPurchasedPending(c))}</span>
     <dl class="detail-list">
       <dt>唯一識別碼</dt><dd>${esc(c.id)}</dd>
       <dt>系列</dt><dd>${esc(c.series)}</dd>
       <dt>卡片編號</dt><dd>${esc(c.cardNo)}</dd>
-      <dt>收藏標記</dt><dd>${collectionLabel(c.quantity)}</dd>
+      <dt>收藏標記</dt><dd>${collectionLabel(c.quantity, isPurchasedPending(c))}</dd>
+      ${isPurchasedPending(c) && c.purchaseDate ? `<dt>購買日期</dt><dd>${esc(displayPurchaseDate(c.purchaseDate))}</dd>` : ""}
       <dt>持有張數</dt><dd>${Number(c.quantity ?? 0)} 張</dd>
       ${isOwner ? `<dt>照片檔名</dt><dd>${esc(c.photoFilename)}</dd><dt>備註</dt><dd>${esc(c.notes)}</dd>` : ""}
     </dl>`;
@@ -300,6 +322,8 @@ async function importCsvFile(file) {
       notes:first(r,["notes","備註"]).trim(),
       quantity:Number.isFinite(parsedQuantity) && parsedQuantity >= 0 ? parsedQuantity : (old?.quantity ?? 0),
       photoFilename:first(r,["photo_filename","照片檔名","圖片檔名"]).trim(),
+      purchasedPending: Number.isFinite(parsedQuantity) && parsedQuantity === 0 ? (["true","1","yes","是"].includes(first(r,["purchased_pending","已購待回"]).toLowerCase()) || (first(r,["purchased_pending","已購待回"]) === "" && old?.purchasedPending === true)) : false,
+      purchaseDate: Number.isFinite(parsedQuantity) && parsedQuantity === 0 ? (first(r,["purchase_date","購買日期"]) || old?.purchaseDate || "") : "",
       photo:old?.photo || null
     };
     await saveCard(card);
@@ -376,10 +400,11 @@ function csvEscape(v) {
 }
 async function exportCsv() {
   const cards=await getAll();
-  const headers=["id","name","series","card_no","notes","quantity","photo_filename"];
+  const headers=["id","name","series","card_no","notes","quantity","purchased_pending","purchase_date","photo_filename"];
   const rows=[headers.join(",")];
   cards.forEach(c=>{
-    const values={id:c.id,name:c.name,series:c.series,card_no:c.cardNo,notes:c.notes,quantity:c.quantity ?? 0,photo_filename:c.photoFilename};
+    const pending=isPurchasedPending(c);
+    const values={id:c.id,name:c.name,series:c.series,card_no:c.cardNo,notes:c.notes,quantity:c.quantity ?? 0,purchased_pending:pending,purchase_date:pending?(c.purchaseDate||""):"",photo_filename:c.photoFilename};
     rows.push(headers.map(h=>csvEscape(values[h] ?? "")).join(","));
   });
   const blob=new Blob(["\\uFEFF"+rows.join("\\r\\n")],{type:"text/csv;charset=utf-8"});
@@ -403,7 +428,7 @@ async function cloudUpload() {
   for (let i=0; i<cards.length; i+=400) {
     const batch = firestore.batch();
     cards.slice(i,i+400).forEach(c => {
-      const data = { id:c.id, name:c.name||"", series:c.series||"", cardNo:c.cardNo||"", notes:c.notes||"", quantity:Number(c.quantity??0), photoFilename:c.photoFilename||"", updatedAt:firebase.firestore.FieldValue.serverTimestamp() };
+      const data = { id:c.id, name:c.name||"", series:c.series||"", cardNo:c.cardNo||"", notes:c.notes||"", quantity:Number(c.quantity??0), photoFilename:c.photoFilename||"", purchasedPending:isPurchasedPending(c), purchaseDate:isPurchasedPending(c)?(c.purchaseDate||""):"", updatedAt:firebase.firestore.FieldValue.serverTimestamp() };
       batch.set(docs.doc(c.id), data, {merge:true});
     });
     await batch.commit();
@@ -419,7 +444,7 @@ async function cloudDownload() {
     const remote=doc.data();
     if (!remote.id) continue;
     const old=await getOne(remote.id);
-    await saveCard({ id:remote.id, name:remote.name||"", series:remote.series||"", cardNo:remote.cardNo||"", notes:remote.notes||"", quantity:Number(remote.quantity??0), photoFilename:remote.photoFilename||"", photo:old?.photo||null });
+    await saveCard({ id:remote.id, name:remote.name||"", series:remote.series||"", cardNo:remote.cardNo||"", notes:remote.notes||"", quantity:Number(remote.quantity??0), photoFilename:remote.photoFilename||"", purchasedPending:Number(remote.quantity??0)===0 ? (remote.purchasedPending === undefined ? old?.purchasedPending === true : remote.purchasedPending === true) : false, purchaseDate:Number(remote.quantity??0)===0 ? (remote.purchaseDate === undefined ? (old?.purchaseDate||"") : (remote.purchaseDate||"")) : "", photo:old?.photo||null });
     count++;
   }
   await render();
@@ -437,7 +462,7 @@ async function loadPublicCatalog() {
     const snap = await firestore.collection("publicCatalog").get();
     publicCards = snap.docs.map(doc => {
       const d = doc.data();
-      return { id: d.id || doc.id, name: d.name || "", series: d.series || "", cardNo: d.cardNo || "", quantity: Number(d.quantity ?? 0), photoFilename: d.photoFilename || "", notes: "" };
+      return { id: d.id || doc.id, name: d.name || "", series: d.series || "", cardNo: d.cardNo || "", quantity: Number(d.quantity ?? 0), photoFilename: d.photoFilename || "", purchasedPending: Number(d.quantity ?? 0)===0 && d.purchasedPending===true, purchaseDate: d.purchaseDate || "", notes: "" };
     });
     publicLoadError = "";
     try { localStorage.setItem("photocard-public-catalog-cache", JSON.stringify(publicCards)); } catch (_) {}
@@ -468,7 +493,7 @@ async function publishPublicCatalog() {
   for (let i = 0; i < cards.length; i += 400) {
     const batch = firestore.batch();
     cards.slice(i, i + 400).forEach(c => {
-      const data = { id:c.id, name:c.name||"", series:c.series||"", cardNo:c.cardNo||"", quantity:Number(c.quantity??0), photoFilename:c.photoFilename||"", updatedAt:firebase.firestore.FieldValue.serverTimestamp() };
+      const data = { id:c.id, name:c.name||"", series:c.series||"", cardNo:c.cardNo||"", quantity:Number(c.quantity??0), photoFilename:c.photoFilename||"", purchasedPending:isPurchasedPending(c), purchaseDate:isPurchasedPending(c)?(c.purchaseDate||""):"", updatedAt:firebase.firestore.FieldValue.serverTimestamp() };
       batch.set(firestore.collection("publicCatalog").doc(c.id), data, {merge:true});
     });
     await batch.commit();
@@ -524,6 +549,19 @@ $("closeDetailBottomBtn").addEventListener("click",()=>$("detailDialog").close()
 $("editDetailBtn").addEventListener("click",async()=>{ if (!isOwner) return; $("detailDialog").close(); await openEditor(currentDetailId); });
 $("searchInput").addEventListener("input",render);
 $("collectionFilter").addEventListener("change",render);
+document.querySelectorAll("[data-stat-filter]").forEach(el => el.addEventListener("click", () => {
+  $("collectionFilter").value = el.dataset.statFilter;
+  render();
+}));
+$("cardQuantity").addEventListener("input", () => {
+  const zero = Number($("cardQuantity").value || 0) === 0;
+  $("purchaseFields").classList.toggle("hidden", !zero);
+  if (!zero) { $("purchasedPending").checked = false; $("purchaseDate").value = ""; }
+});
+$("purchasedPending").addEventListener("change", () => {
+  if ($("purchasedPending").checked && !$("purchaseDate").value) $("purchaseDate").value = todayDateInput();
+  if (!$("purchasedPending").checked) $("purchaseDate").value = "";
+});
 $("groupFilter").addEventListener("change",render);
 $("exportBackupBtn").addEventListener("click",async()=>{try{await exportBackup();}catch(e){message("備份失敗："+e.message,true);}});
 $("restoreBackupBtn").addEventListener("click",()=>$("backupFileInput").click());
